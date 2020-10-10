@@ -1,0 +1,344 @@
+#cargar datos-----------------------------------------------------------------------
+datos <- read.table("path", 
+                    header=TRUE, stringsAsFactors=FALSE, sep="\t", na.strings="NA", dec=".", 
+                    strip.white=TRUE)
+#cambiar formato de fecha a datos---------------------------------------------------
+library(tidyverse)
+library(lubridate)
+library(zoo)
+library(Rcmdr)
+datos$Periodos
+parse_date_time(datos$Periodos,orders = "Yq")
+#datos$Periodos<-yq(datos$Periodos)
+
+#df para fechas------------------------------------------------------------------
+df=data.frame(year=rep(1993:2019,each=4),
+              quarter=rep(c("T1","T2","T3","T4"),27))
+#cortarlo al 2T2019
+df<-df[1:106,]
+
+#resumen de estadística descriptiva de variables------------------------------------
+library(pastecs)
+stat.desc(datos$pib)
+stat.desc(datos$tc)
+stat.desc(datos$m)
+
+#Crear columnas para cálculo de var % PIB-------------------------------------------
+library(dplyr)
+#columna con valor anterior
+p<- datos %>% 
+  select(pib)
+p<-p$pib[1:105]
+#NA para primera observación
+P<-NA
+#vector combinado con NA y valores anteriores
+pib1<-rbind(
+  as.matrix(P),
+  as.matrix(p)
+  )
+#agregar vector combinado a data frame
+datos$pib1<-pib1
+#calcular var % tc------------------------------------------------------------------
+datos$vpib<-((datos$pib/datos$pib1)-1)*100
+
+
+#Crear columnas para cálculo de var % TC-------------------------------------------
+#columna con valor anterior
+t<- datos %>% 
+  select(tc)
+t<-t$tc[1:105]
+#NA para primera observación
+T<-NA
+#vector combinado con NA y valores anteriores
+tc1<-rbind(
+  as.matrix(T),
+  as.matrix(t)
+  )
+#agregar vector combinado a data frame
+datos$tc1<-tc1
+#calcular var % tc------------------------------------------------------------------
+datos$vtc<-((datos$tc/datos$tc1)-1)*100
+
+#Crear columnas para cálculo de var % m-------------------------------------------
+#columna con valor anterior
+im<- datos %>% 
+  select(m)
+im<-im$m[1:105]
+#NA para primera observación
+M<-NA
+#vector combinado con NA y valores anteriores
+m1<-rbind(
+  as.matrix(M),
+  as.matrix(im)
+)
+
+#agregar vector combinado a data frame------------------------------------------------
+datos$m1<-m1
+#calcular var % tc------------------------------------------------------------------
+datos$vm<-((datos$m/datos$m1)-1)*100
+
+#arreglar nuevo dataframe con fechas-------------------------------------------------
+datos<-cbind(df,datos)
+#eliminar periodos
+datos<-datos[,-3]
+fecha<-paste(datos$year,datos$quarter,sep=":")
+datos<-cbind(fecha,datos)
+head(datos)
+datos$fecha<-yq(datos$fecha)
+head(datos)
+
+#graf tasa pib---------------------------------------------------------
+library(ggplot2)
+library(scales)
+library(zoo)
+library(ggthemes)
+library(ggrepel)
+library(grid)
+library(extrafont)
+font_import()
+library(sysfonts)
+library(extrafont)
+library(showtext)
+
+x11()
+ggplot(data=datos,
+       aes(x = fecha,
+           y=vpib,
+           label=round(vpib,digits = 2)
+           )
+       )+
+  geom_bar(stat="identity",fill="deepskyblue3")+
+  labs(x="Trimestre",
+       y="Var. %",
+       caption="Fuente: INEGI",
+       title="Variación porcentual trimestral del PIB de México")+
+    theme_economist()+
+    geom_text_repel(
+    hjust = 0.5,
+    vjust = - 0.4,
+    size=4,
+    angle =90,
+    direction ="y"
+  )+
+  #ajustar eje y 
+  coord_cartesian(ylim = c(-10, 7))
+  
+#graf tasa tc---------------------------------------------------------
+x11()
+ggplot(data=datos,
+       aes(x = fecha,
+           y=vtc,
+           label=round(vpib,digits = 2)
+       )
+)+
+  geom_bar(stat="identity",fill="deepskyblue3")+
+  labs(x="Trimestre",
+       y="Var. %",
+       caption="Fuente: Banxico",
+       title="Variación porcentual  del tipo de cambio real en México")+
+  theme_economist()+
+  geom_text_repel(
+    hjust = 0.5,
+    vjust = - 0.4,
+    size=4,
+    angle =90,
+    direction ="y"
+  )
+  
+#graf tasa m---------------------------------------------------------
+x11()
+ggplot(data=datos,
+       aes(x = fecha,
+           y=vm,
+           label=round(vm,digits = 2)
+       )
+)+
+  geom_bar(stat="identity",fill="deepskyblue3")+
+  labs(x="Trimestre",
+       y="Var. %",
+       caption="Fuente: Banxico",
+       title="Variación porcentual trimestral de las importaciones en México")+
+  theme_economist()+
+  geom_text_repel(
+    hjust = 0.5,
+    vjust = - 0.4,
+    size=4,
+    angle =90,
+    direction ="y"
+  )
+
+#histogramas de variables (absolutos)------------------------------------------------
+x11()
+
+hpib<-hist(datos$vpib, 
+           scale="frequency", 
+           breaks="Sturges", 
+           col="deepskyblue3", 
+           ylab="Frecuencia", 
+           xlab="PIB", 
+           main="Histograma de variación de PIB")
+
+x11()
+htc<-hist(datos$vtc, 
+          scale="frequency", 
+          breaks="Sturges", 
+          col="deepskyblue3", 
+          ylab="Frecuencia", 
+          xlab="Tipo de cambio", 
+          main="Histograma de variación de tipo de cambio")
+          
+
+x11()
+hm<-hist(datos$vm, 
+     scale="frequency", 
+     breaks="Sturges", 
+     col="deepskyblue3", 
+     ylab="Frecuencia", 
+     xlab="Importaciones", 
+     main="Histograma de variación de importaciones")
+
+#Gráficas Kernel
+x11()
+#par(mfrow=c(1,3))
+densityPlot( ~ vpib, data=datos, bw=bw.SJ, adjust=1, kernel=dnorm, 
+             method="adaptive", xlab="PIB de México", ylab="Densidad",
+             main="Función de densidad kernel de var.% del  PIB de México, 1993-20192T")
+x11()
+densityPlot( ~ vtc, data=datos, bw=bw.SJ, adjust=1, kernel=dnorm, 
+             method="adaptive", xlab="Tipo de cambio real de México", ylab="Densidad",
+             main="Función de densidad kernel de var.% del  tipo de cambio real de México, 1993-20192T")
+x11()
+densityPlot( ~ vm, data=datos, bw=bw.SJ, adjust=1, kernel=dnorm, 
+             method="adaptive", xlab="Importaciones de México", ylab="Densidad",
+             main="Función de densidad kernel de var.% de importaciones mexicanas, 1993-20192T")
+
+
+#Matriz de correlación--------------------------------------------------
+cor(datos[,c("vm","vpib","vtc")], use="complete")
+
+#Prueba ADF para análisis de integración del PIB de la economía mexicana------------------------------------
+library(urca)
+# Se asigna el logaritmo de la variable de serie de tiempo al objeto PIB_MEX y se aplica la primera
+#y segunda diferencia
+x11()
+lpib_mex <- log(datos$pib)
+d_lpib_mex <- diff(lpib_mex)
+d_lpib_mex2<- diff(lpib_mex,2)
+# Se asigna la variable que orden en el tiempo
+periodo <- datos$fecha
+# Para analizar el comportamiento del PIB de México se grafica la variable del PIB en el
+#tiempo
+x11()
+par(mfrow=c(1,2))
+plot(periodo, lpib_mex, main="PIB de Mexico")
+lines(lpib_mex)
+#Para construir un gráfica con las primera y segunda diferencia del PIB------------
+plot(d_lpib_mex, main="Diferencias del logaritmo del PIB de México")
+lines(d_lpib_mex, col="black")
+lines(d_lpib_mex2, col="red")
+
+#Prueba ADF para análisis de integración del tipo de cambio------------------------------------
+# Se asigna el logaritmo de la variable de serie de tiempo al objeto tc y se aplica la primera
+#y segunda diferencia
+x11()
+ltc <- log(datos$tc)
+d_ltc <- diff(ltc)
+d_ltc2<- diff(ltc,2)
+# Se asigna la variable que orden en el tiempo
+periodo <- datos$fecha
+# Para analizar el comportamiento del tipo de cambio se grafica la variable del tc en el
+#tiempo
+x11()
+par(mfrow=c(1,2))
+plot(periodo, ltc, main="Tipo de cambio")
+lines(ltc)
+#Para construir un gráfica con las primera y segunda diferencia del tc------------
+plot(d_ltc, main="Diferencias del logaritmo del tipo de cambio")
+lines(d_ltc, col="black")
+lines(d_ltc2, col="red")
+
+
+
+#Prueba ADF para análisis de integración de las importaciones------------------------------------
+# Se asigna el logaritmo de la variable de serie de tiempo al objeto importaciones y se aplica la primera
+#y segunda diferencia
+x11()
+lm <- log(datos$m)
+d_lm <- diff(lm)
+d_lm2<- diff(lm,2)
+# Se asigna la variable que orden en el tiempo
+periodo <- datos$fecha
+# Para analizar el comportamiento de las importaciones de México se grafica la variable importaciones en el
+#tiempo
+x11()
+par(mfrow=c(1,2))
+plot(periodo, lm, main="Importaciones de México")
+lines(lm)
+#Para construir un gráfica con las primera y segunda diferencia de las import------------
+plot(d_lm, main="Diferencias del logaritmo de importaciones de México")
+lines(d_lm, col="black")
+lines(d_lm2, col="red")
+
+
+#prueba ADF para establecer si el logaritmo del PIB tiene raíz unitaria
+#y de que tipo--------------------------------------------------------
+#Prueba de ADF
+lc.df <- ur.df(y=lpib_mex, type='trend',lags=4, selectlags=c("AIC"))
+summary(lc.df)
+
+#pruebas ADF con constante y sin constante------------------------------------------
+#y tendencia
+#usar variable sin logaritmo
+#ADF con constante
+lc.df <- ur.df(y=datos$pib, type='drift',lags=4, selectlags=c("AIC"))
+summary(lc.df)
+#ADF sin cte y tend
+lc.df <- ur.df(y=datos$pib, type='none',lags=4, selectlags=c("AIC"))
+summary(lc.df)
+
+
+#prueba ADF para establecer si el logaritmo de tipo de cambio tiene raíz unitaria
+#y de que tipo--------------------------------------------------------
+#Prueba de ADF
+lc.df <- ur.df(y=ltc, type='trend',lags=4, selectlags=c("AIC"))
+summary(lc.df)
+
+#pruebas ADF con constante y sin constante------------------------------------------
+#y tendencia
+#usar variable sin logaritmo
+#ADF con constante
+lc.df <- ur.df(y=datos$tc, type='drift',lags=4, selectlags=c("AIC"))
+summary(lc.df)
+#ADF sin cte y tend
+lc.df <- ur.df(y=datos$tc, type='none',lags=4, selectlags=c("AIC"))
+summary(lc.df)
+
+
+#prueba ADF para establecer si el logaritmo de importaciones tiene raíz unitaria
+#y de que tipo--------------------------------------------------------
+#Prueba de ADF
+lc.df <- ur.df(y=lm, type='trend',lags=4, selectlags=c("AIC"))
+summary(lc.df)
+
+#pruebas ADF con constante y sin constante------------------------------------------
+#y tendencia
+#usar variable sin logaritmo
+#ADF con constante
+lc.df <- ur.df(y=datos$m, type='drift',lags=4, selectlags=c("AIC"))
+summary(lc.df)
+#ADF sin cte y tend
+lc.df <- ur.df(y=datos$m, type='none',lags=4, selectlags=c("AIC"))
+summary(lc.df)
+
+
+#regresión lineal múltiple
+rlm <- lm(m ~ pib + tc ,data=datos)
+anova(RegModel.2)
+
+abline(lm(m ~ pib + tc ,data=datos))
+
+#modelo doble logaritmo
+#de los ejericios antes realizados, ya teníamos las variables
+#en escala logarítmica
+log.log.rlm<-lm(lm~ lpib_mex + ltc)
+summary(log.log.rlm)
